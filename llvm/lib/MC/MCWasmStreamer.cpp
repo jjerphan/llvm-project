@@ -151,7 +151,12 @@ bool MCWasmStreamer::emitSymbolAttribute(MCSymbol *S, MCSymbolAttr Attribute) {
 
 void MCWasmStreamer::emitCommonSymbol(MCSymbol *S, uint64_t Size,
                                       Align ByteAlignment) {
-  llvm_unreachable("Common symbols are not yet implemented for Wasm");
+  auto *Symbol = cast<MCSymbolWasm>(S);
+  getAssembler().registerSymbol(*Symbol);
+  Symbol->setWeak(true);
+  Symbol->setExternal(true);
+  Symbol->setSize(Size);
+  Symbol->setAlignment(ByteAlignment);
 }
 
 void MCWasmStreamer::emitELFSize(MCSymbol *Symbol, const MCExpr *Value) {
@@ -160,7 +165,12 @@ void MCWasmStreamer::emitELFSize(MCSymbol *Symbol, const MCExpr *Value) {
 
 void MCWasmStreamer::emitLocalCommonSymbol(MCSymbol *S, uint64_t Size,
                                            Align ByteAlignment) {
-  llvm_unreachable("Local common symbols are not yet implemented for Wasm");
+  auto *Symbol = cast<MCSymbolWasm>(S);
+  getAssembler().registerSymbol(*Symbol);
+  Symbol->setWeak(true);
+  Symbol->setExternal(false);
+  Symbol->setSize(Size);
+  Symbol->setAlignment(ByteAlignment);
 }
 
 void MCWasmStreamer::emitIdent(StringRef IdentString) {
