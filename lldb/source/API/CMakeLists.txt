@@ -339,18 +339,30 @@ endif()
 ## BEGIN SWIFT
 set(lib_dir "${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/lib${LLVM_LIBDIR_SUFFIX}")
 
+# Set SWIFT_BINARY_DIR if not already set
+if(NOT DEFINED SWIFT_BINARY_DIR AND DEFINED SWIFT_PATH_TO_SWIFT_SDK)
+  set(SWIFT_BINARY_DIR ${SWIFT_PATH_TO_SWIFT_SDK})
+endif()
+
 if(EXISTS ${SWIFT_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}/swift/clang)
   set(CLANG_RESOURCE_PATH "${SWIFT_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}/swift/clang")
 elseif(LLDB_BUILT_STANDALONE)
   set(CLANG_RESOURCE_PATH ${LLDB_EXTERNAL_CLANG_RESOURCE_DIR})
 elseif(LLVM_LIBRARY_OUTPUT_INTDIR)
-  set(CLANG_RESOURCE_PATH "${LLVM_LIBRARY_OUTPUT_INTDIR}/swift/clang")
+  set(CLANG_RESOURCE_PATH "${LLVM_LIBRARY_OUTPUT_INTDIR}/clang")
 else()
   message(SEND_ERROR "unified build cannot locate clang resource directory")
 endif()
 
 set(clang_headers_target ${CLANG_RESOURCE_PATH}/include)
 set(SWIFT_RESOURCE_PATH "${SWIFT_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}/swift")
+
+# Create symlink_clang_headers target if it doesn't exist (needed for Swift support)
+if(LLDB_ENABLE_SWIFT_SUPPORT AND NOT TARGET symlink_clang_headers)
+  add_custom_target(symlink_clang_headers ALL
+    COMMENT "Creating symlink_clang_headers target for Swift support")
+endif()
+
 if(NOT LLDB_BUILT_STANDALONE)
   set(clang_headers_target clang-resource-headers symlink_clang_headers)
 endif()

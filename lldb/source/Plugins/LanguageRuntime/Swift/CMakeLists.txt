@@ -9,10 +9,6 @@ add_lldb_library(lldbPluginSwiftLanguageRuntime PLUGIN
   SwiftTask.cpp
 
   LINK_LIBS
-    swiftAST
-    swiftBasic
-    swiftRemoteInspection
-    swiftRemoteAST
     lldbCore
     lldbExpression
     lldbInterpreter
@@ -21,4 +17,8 @@ add_lldb_library(lldbPluginSwiftLanguageRuntime PLUGIN
     lldbPluginExpressionParserClang
     lldbPluginProcessUtility
     lldbPluginSwiftLanguage
+    "${SWIFT_LIBRARY_DIR}/libswiftAST.a"
+    "${SWIFT_LIBRARY_DIR}/libswiftBasic.a"
+    "${SWIFT_LIBRARY_DIR}/libswiftRemoteInspection.a"
+    "${SWIFT_LIBRARY_DIR}/libswiftRemoteAST.a"
 )

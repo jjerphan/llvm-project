@@ -7,6 +7,9 @@ set(SWIFT_LIBS
     swiftSIL
     swiftSerialization
 )
+
+# Convert library names to full paths
+swift_libs_to_paths("${SWIFT_LIBS}" SWIFT_LIBS)
 list(APPEND LLVM_OPTIONAL_SOURCES ${SWIFT_SOURCES})
 if (NOT LLDB_ENABLE_SWIFT_SUPPORT)
   unset(SWIFT_SOURCES)

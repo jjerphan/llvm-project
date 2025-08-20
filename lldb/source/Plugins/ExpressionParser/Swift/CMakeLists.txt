@@ -27,18 +27,18 @@ add_lldb_library(lldbPluginExpressionParserSwift PLUGIN
     lldbUtility
     lldbPluginTypeSystemSwift
     lldbPluginSwiftLanguageRuntime
-    swiftAST
-    swiftBasic
-    swiftClangImporter
-    swiftFrontend
-    swiftIDE
-    swiftParse
-    swiftSIL
-    swiftSILOptimizer
-    swiftSerialization
     clangAST
     clangBasic
     clangRewrite
+    "${SWIFT_LIBRARY_DIR}/libswiftAST.a"
+    "${SWIFT_LIBRARY_DIR}/libswiftBasic.a"
+    "${SWIFT_LIBRARY_DIR}/libswiftClangImporter.a"
+    "${SWIFT_LIBRARY_DIR}/libswiftFrontend.a"
+    "${SWIFT_LIBRARY_DIR}/libswiftIDE.a"
+    "${SWIFT_LIBRARY_DIR}/libswiftParse.a"
+    "${SWIFT_LIBRARY_DIR}/libswiftSIL.a"
+    "${SWIFT_LIBRARY_DIR}/libswiftSILOptimizer.a"
+    "${SWIFT_LIBRARY_DIR}/libswiftSerialization.a"
 
   LINK_COMPONENTS
     Support
@@ -65,5 +65,5 @@ if(BOOTSTRAPPING_MODE)
 else()
   target_link_libraries(lldbPluginExpressionParserSwift
     PRIVATE
-      swiftCompilerStub)
+      "${SWIFT_LIBRARY_DIR}/libswiftCompilerModules.a")
 endif()

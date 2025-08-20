@@ -47,6 +47,24 @@ else()
   set(SWIFT_LIBRARY_DIR "${CMAKE_BINARY_DIR}/${CMAKE_CFG_INTDIR}/lib")
 endif()
 
+# Override SWIFT_LIBRARY_DIR if SWIFT_PATH_TO_SWIFT_SDK is set
+if(DEFINED SWIFT_PATH_TO_SWIFT_SDK)
+  set(SWIFT_LIBRARY_DIR "${SWIFT_PATH_TO_SWIFT_SDK}/lib")
+endif()
+
+# Function to convert Swift library names to full paths
+function(swift_libs_to_paths LIBRARIES OUTPUT_VAR)
+  if(DEFINED SWIFT_LIBRARY_DIR)
+    set(${OUTPUT_VAR})
+    foreach(lib ${LIBRARIES})
+      list(APPEND ${OUTPUT_VAR} "${SWIFT_LIBRARY_DIR}/lib${lib}.a")
+    endforeach()
+  else()
+    set(${OUTPUT_VAR} ${LIBRARIES})
+  endif()
+  set(${OUTPUT_VAR} ${${OUTPUT_VAR}} PARENT_SCOPE)
+endfunction()
+
 include(LLDBConfig)
 include(AddLLDB)
 

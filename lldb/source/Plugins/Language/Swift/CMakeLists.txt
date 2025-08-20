@@ -33,9 +33,9 @@ add_lldb_library(lldbPluginSwiftLanguage PLUGIN
     lldbUtility
     lldbPluginObjCLanguage
     lldbPluginTypeSystemSwift
-    swiftAST
-    swiftClangImporter
     clangAST
+    "${SWIFT_LIBRARY_DIR}/libswiftAST.a"
+    "${SWIFT_LIBRARY_DIR}/libswiftClangImporter.a"
 
   LINK_COMPONENTS
     Support
