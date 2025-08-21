@@ -62,6 +62,8 @@ public:
 
   CompilerType GetSiginfoType(const llvm::Triple &triple) override;
 
+  llvm::Expected<XcodeSDK> GetSDKPathFromDebugInfo(CompileUnit &unit) override;
+
   std::vector<ArchSpec> m_supported_architectures;
 
 private:
