@@ -488,15 +488,34 @@ CompilerType PlatformLinux::GetSiginfoType(const llvm::Triple &triple) {
 
 llvm::Expected<XcodeSDK>
 PlatformLinux::GetSDKPathFromDebugInfo(CompileUnit &unit) {
+  // Add logging to see if this method is being called
+  Log *log = GetLog(LLDBLog::Platform);
+  if (log) {
+    LLDB_LOGF(log, "[PLATFORM_LINUX] GetSDKPathFromDebugInfo called for compile unit");
+  }
+  
   ModuleSP module_sp = unit.CalculateSymbolContextModule();
-  if (!module_sp)
+  if (!module_sp) {
+    if (log) {
+      LLDB_LOGF(log, "[PLATFORM_LINUX] GetSDKPathFromDebugInfo: compile unit has no module");
+    }
     return llvm::createStringError("compile unit has no module");
+  }
 
   SymbolFile *sym_file = module_sp->GetSymbolFile();
-  if (!sym_file)
+  if (!sym_file) {
+    if (log) {
+      LLDB_LOGF(log, "[PLATFORM_LINUX] GetSDKPathFromDebugInfo: no symbol file available for module '%s'",
+                 module_sp->GetFileSpec().GetFilename().AsCString("<unknown>"));
+    }
     return llvm::createStringError(
         llvm::formatv("No symbol file available for module '{0}'",
                       module_sp->GetFileSpec().GetFilename()));
+  }
+
+  if (log) {
+    LLDB_LOGF(log, "[PLATFORM_LINUX] GetSDKPathFromDebugInfo: calling sym_file->ParseXcodeSDK");
+  }
 
   // For Linux, we don't have Xcode SDKs, but we can try to extract
   // system library paths from debug info. This is particularly useful

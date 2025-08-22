@@ -1450,8 +1450,8 @@ static bool DeserializeAllCompilerFlags(swift::CompilerInvocation &invocation,
             if (known_external_plugin_search_paths.insert(plugin).second)
               if (exists(plugin))
                 plugin_search_options.emplace_back(
-                    swift::PluginSearchOption::ExternalPluginPath{plugin.str(),
-                                                                  server});
+                    swift::PluginSearchOption::ExternalPluginPath{
+                        plugin.str(), server});
             continue;
           }
           case swift::PluginSearchOption::Kind::LoadPluginLibrary: {
@@ -3509,6 +3509,22 @@ void SwiftASTContext::InitializeSearchPathOptions(
   llvm::Triple triple(GetTriple());
   std::string resource_dir =
       HostInfo::GetSwiftResourceDir(triple, GetPlatformSDKPath());
+  
+  // Check for custom Swift paths from environment variables
+  const char *swift_root = getenv("SWIFT_ROOT");
+  const char *swift_library_path = getenv("SWIFT_LIBRARY_PATH");
+  const char *swift_module_path = getenv("SWIFT_MODULE_PATH");
+  
+  if (swift_root && swift_root[0] != '\0') {
+    LOG_PRINTF(GetLog(LLDBLog::Types), "Found custom SWIFT_ROOT: %s", swift_root);
+  }
+  if (swift_library_path && swift_library_path[0] != '\0') {
+    LOG_PRINTF(GetLog(LLDBLog::Types), "Found custom SWIFT_LIBRARY_PATH: %s", swift_library_path);
+  }
+  if (swift_module_path && swift_module_path[0] != '\0') {
+    LOG_PRINTF(GetLog(LLDBLog::Types), "Found custom SWIFT_MODULE_PATH: %s", swift_module_path);
+  }
+  
   ConfigureResourceDirs(GetCompilerInvocation(), resource_dir, triple);
 
   std::string sdk_path = GetPlatformSDKPath().str();
@@ -3548,6 +3564,17 @@ void SwiftASTContext::InitializeSearchPathOptions(
     std::vector<std::string> &lpaths =
         invocation.getSearchPathOptions().LibrarySearchPaths;
     lpaths.insert(lpaths.begin(), "/usr/lib/swift");
+    
+    // Add custom Swift library paths if specified
+    if (swift_library_path && swift_library_path[0] != '\0') {
+      lpaths.insert(lpaths.begin(), swift_library_path);
+      LOG_PRINTF(GetLog(LLDBLog::Types), "Added custom Swift library path: %s", swift_library_path);
+    }
+    if (swift_root && swift_root[0] != '\0') {
+      std::string swift_lib_path = std::string(swift_root) + "/lib";
+      lpaths.insert(lpaths.begin(), swift_lib_path);
+      LOG_PRINTF(GetLog(LLDBLog::Types), "Added custom Swift lib path: %s", swift_lib_path.c_str());
+    }
   }
 
   // Set the default host plugin paths.
@@ -3561,7 +3588,7 @@ void SwiftASTContext::InitializeSearchPathOptions(
     if (!server.empty() && FileSystem::Instance().Exists(server))
       invocation.getSearchPathOptions().PluginSearchOpts.emplace_back(
           swift::PluginSearchOption::ExternalPluginPath{plugin_path.str().str(),
-                                                        server});
+                                                      server});
   }
 
   llvm::StringMap<bool> processed;
@@ -3576,6 +3603,30 @@ void SwiftASTContext::InitializeSearchPathOptions(
     auto it_notseen = processed.insert(path);
     if (it_notseen.second)
       invocation_import_paths.push_back({path.first, path.second});
+  }
+  
+  // Add custom Swift module paths if specified
+  if (swift_module_path && swift_module_path[0] != '\0') {
+    // Extract the directory from the module path
+    std::string module_dir = swift_module_path;
+    size_t last_slash = module_dir.find_last_of('/');
+    if (last_slash != std::string::npos) {
+      module_dir = module_dir.substr(0, last_slash);
+      auto it_notseen = processed.insert({module_dir, false});
+      if (it_notseen.second) {
+        invocation_import_paths.push_back({module_dir, false});
+        LOG_PRINTF(GetLog(LLDBLog::Types), "Added custom Swift module path: %s", module_dir.c_str());
+      }
+    }
+  }
+  
+  if (swift_root && swift_root[0] != '\0') {
+    std::string swift_module_root = std::string(swift_root) + "/lib/swift";
+    auto it_notseen = processed.insert({swift_module_root, false});
+    if (it_notseen.second) {
+      invocation_import_paths.push_back({swift_module_root, false});
+      LOG_PRINTF(GetLog(LLDBLog::Types), "Added custom Swift module root path: %s", swift_module_root.c_str());
+    }
   }
   invocation.getSearchPathOptions().setImportSearchPaths(
       invocation_import_paths);
@@ -4116,15 +4167,53 @@ GetLibrarySearchPaths(const swift::SearchPathOptions &search_path_opts) {
   // dlopen()s libswiftCore, and gives precedence to the just built standard
   // library instead of the one in the OS. When we type `import Foundation`,
   // we want to make sure we end up loading the correct library, i.e. the
-  // one sitting next to the stdlib we just built, and then fall back to the
-  // one in the OS if that's not available.
+  // one sitting next to the stdlib we just built, and then fall back to
+  // the one in the OS if that's not available.
   std::vector<std::string> paths;
-  for (std::string path : search_path_opts.RuntimeLibraryPaths)
+  
+  // Log the search paths we're using
+  // Add printf-style logging that will definitely show up
+  printf("[SWIFT_LIBRARY_SEARCH] ========================================\n");
+  printf("[SWIFT_LIBRARY_SEARCH] GetLibrarySearchPaths called\n");
+  
+  Log *log = GetLog(LLDBLog::Types);
+  LLDB_LOGF(log, "[SWIFT_LIBRARY_SEARCH] RuntimeLibraryPaths (%zu entries):", 
+             search_path_opts.RuntimeLibraryPaths.size());
+  printf("[SWIFT_LIBRARY_SEARCH] RuntimeLibraryPaths (%zu entries):\n", 
+         search_path_opts.RuntimeLibraryPaths.size());
+  
+  for (const std::string &path : search_path_opts.RuntimeLibraryPaths) {
+    LLDB_LOGF(log, "[SWIFT_LIBRARY_SEARCH]   RuntimeLibraryPath: %s", path.c_str());
+    printf("[SWIFT_LIBRARY_SEARCH]   RuntimeLibraryPath: %s\n", path.c_str());
     paths.push_back(path);
-  for (std::string path : search_path_opts.LibrarySearchPaths)
+  }
+  
+  LLDB_LOGF(log, "[SWIFT_LIBRARY_SEARCH] LibrarySearchPaths (%zu entries):", 
+             search_path_opts.LibrarySearchPaths.size());
+  printf("[SWIFT_LIBRARY_SEARCH] LibrarySearchPaths (%zu entries):\n", 
+         search_path_opts.LibrarySearchPaths.size());
+  
+  for (const std::string &path : search_path_opts.LibrarySearchPaths) {
+    LLDB_LOGF(log, "[SWIFT_LIBRARY_SEARCH]   LibrarySearchPath: %s", path.c_str());
+    printf("[SWIFT_LIBRARY_SEARCH]   LibrarySearchPath: %s\n", path.c_str());
     paths.push_back(path);
-  for (const std::string &path : HostInfo::GetSwiftLibrarySearchPaths())
+  }
+  
+  std::vector<std::string> host_paths = HostInfo::GetSwiftLibrarySearchPaths();
+  LLDB_LOGF(log, "[SWIFT_LIBRARY_SEARCH] HostInfo::GetSwiftLibrarySearchPaths (%zu entries):", 
+             host_paths.size());
+  printf("[SWIFT_LIBRARY_SEARCH] HostInfo::GetSwiftLibrarySearchPaths (%zu entries):\n", 
+         host_paths.size());
+  
+  for (const std::string &path : host_paths) {
+    LLDB_LOGF(log, "[SWIFT_LIBRARY_SEARCH]   HostPath: %s", path.c_str());
+    printf("[SWIFT_LIBRARY_SEARCH]   HostPath: %s\n", path.c_str());
     paths.emplace_back(path);
+  }
+  
+  LLDB_LOGF(log, "[SWIFT_LIBRARY_SEARCH] Total search paths: %zu", paths.size());
+  printf("[SWIFT_LIBRARY_SEARCH] Total search paths: %zu\n", paths.size());
+  printf("[SWIFT_LIBRARY_SEARCH] ========================================\n");
   return paths;
 }
 
@@ -4132,13 +4221,31 @@ void SwiftASTContext::LoadModule(swift::ModuleDecl *swift_module,
                                  Process &process, Status &error) {
   VALID_OR_RETURN();
 
+  // Add logging for Swift module loading
+  Log *log = GetLog(LLDBLog::Types);
+  if (log) {
+    LLDB_LOGF(log, "[SWIFT_MODULE_LOAD] ========================================");
+    LLDB_LOGF(log, "[SWIFT_MODULE_LOAD] LoadModule called for module: %s", 
+               swift_module->getName().str().str().c_str());
+    LLDB_LOGF(log, "[SWIFT_MODULE_LOAD] Process ID: %d", process.GetID());
+    LLDB_LOGF(log, "[SWIFT_MODULE_LOAD] ========================================");
+  }
+
   Status current_error;
   auto addLinkLibrary = [&](swift::LinkLibrary link_lib) {
     Status load_image_error;
     StreamString all_dlopen_errors;
     std::string library_name = link_lib.getName().str();
 
+    if (log) {
+      LLDB_LOGF(log, "[SWIFT_MODULE_LOAD] Processing link library: %s (kind: %d)", 
+                 library_name.c_str(), (int)link_lib.getKind());
+    }
+
     if (library_name.empty()) {
+      if (log) {
+        LLDB_LOGF(log, "[SWIFT_MODULE_LOAD] ERROR: Empty library name");
+      }
       error = Status::FromErrorString(
           "Empty library name passed to addLinkLibrary");
       return;
@@ -4298,12 +4405,21 @@ void SwiftASTContext::LoadModule(swift::ModuleDecl *swift_module,
                                  load_image_error.AsCString());
     } break;
     case swift::LibraryKind::Library: {
-      std::vector<std::string> search_paths =
-          GetLibrarySearchPaths(swift_module->getASTContext().SearchPathOpts);
+          if (log) {
+      LLDB_LOGF(log, "[SWIFT_MODULE_LOAD] Getting search paths for library: %s", library_name.c_str());
+    }
+    
+    std::vector<std::string> search_paths =
+        GetLibrarySearchPaths(swift_module->getASTContext().SearchPathOpts);
 
-      if (LoadLibraryUsingPaths(process, library_name, search_paths, true,
-                                all_dlopen_errors))
-        return;
+    if (log) {
+      LLDB_LOGF(log, "[SWIFT_MODULE_LOAD] Retrieved %zu search paths for library: %s", 
+                 search_paths.size(), library_name.c_str());
+    }
+
+    if (LoadLibraryUsingPaths(process, library_name, search_paths, true,
+                              all_dlopen_errors))
+      return;
     } break;
     }
 
@@ -4312,6 +4428,12 @@ void SwiftASTContext::LoadModule(swift::ModuleDecl *swift_module,
     if (runtime)
       runtime->AddToLibraryNegativeCache(library_name);
 
+    if (log) {
+      LLDB_LOGF(log, "[SWIFT_MODULE_LOAD] FAILED: Could not load library '%s' for module '%s'", 
+                 library_name.c_str(), swift_module->getName().str().str().c_str());
+      LLDB_LOGF(log, "[SWIFT_MODULE_LOAD] Error details: %s", all_dlopen_errors.GetData());
+    }
+
     current_error = Status::FromErrorStringWithFormatv(
         "Failed to load linked library {0} of module {1} - errors:\n{2}\n",
         library_name, swift_module->getName().str().str(),
@@ -4319,8 +4441,21 @@ void SwiftASTContext::LoadModule(swift::ModuleDecl *swift_module,
   };
 
   for (auto import : swift::namelookup::getAllImports(swift_module)) {
+    if (log) {
+      LLDB_LOGF(log, "[SWIFT_MODULE_LOAD] Processing import: %s", 
+                 import.importedModule->getName().str().str().c_str());
+    }
     import.importedModule->collectLinkLibraries(addLinkLibrary);
   }
+  
+  if (log) {
+    if (current_error.Success()) {
+      LLDB_LOGF(log, "[SWIFT_MODULE_LOAD] SUCCESS: Module loaded successfully");
+    } else {
+      LLDB_LOGF(log, "[SWIFT_MODULE_LOAD] FINAL ERROR: %s", current_error.AsCString());
+    }
+  }
+  
   error = current_error.Clone();
 }
 
@@ -4330,20 +4465,45 @@ bool SwiftASTContext::LoadLibraryUsingPaths(
     StreamString &all_dlopen_errors) {
   VALID_OR_RETURN(false);
 
+  // Add printf-style logging that will definitely show up
+  printf("[SWIFT_LIBRARY_LOAD] ========================================\n");
+  printf("[SWIFT_LIBRARY_LOAD] LoadLibraryUsingPaths called for library: %s\n", library_name.str().c_str());
+  printf("[SWIFT_LIBRARY_LOAD] Search paths count: %zu\n", search_paths.size());
+  for (size_t i = 0; i < search_paths.size(); i++) {
+    printf("[SWIFT_LIBRARY_LOAD]   Search path %zu: %s\n", i, search_paths[i].c_str());
+  }
+  printf("[SWIFT_LIBRARY_LOAD] ========================================\n");
+
+  // Add comprehensive logging for Swift library loading
+  Log *log = GetLog(LLDBLog::Types);
+  LLDB_LOGF(log, "[SWIFT_LIBRARY_LOAD] Attempting to load library: %s", library_name.str().c_str());
+  LLDB_LOGF(log, "[SWIFT_LIBRARY_LOAD] Search paths count: %zu", search_paths.size());
+  for (size_t i = 0; i < search_paths.size(); i++) {
+    LLDB_LOGF(log, "[SWIFT_LIBRARY_LOAD]   Search path %zu: %s", i, search_paths[i].c_str());
+  }
+
   SwiftLanguageRuntime *runtime = SwiftLanguageRuntime::Get(&process);
   if (!runtime) {
+    LLDB_LOGF(log, "[SWIFT_LIBRARY_LOAD] ERROR: No Swift language runtime available");
     all_dlopen_errors.PutCString(
         "Can't load Swift libraries without a language runtime.");
     return false;
   }
 
   PlatformSP platform_sp(process.GetTarget().GetPlatform());
+  LLDB_LOGF(log, "[SWIFT_LIBRARY_LOAD] Platform available: %s", platform_sp ? "yes" : "no");
+
+  if (platform_sp) {
+    printf("[SWIFT_LIBRARY_LOAD] Platform name: %s\n", platform_sp->GetName().str().c_str());
+    printf("[SWIFT_LIBRARY_LOAD] Platform description: %s\n", platform_sp->GetDescription().str().c_str());
+  }
 
   std::string library_fullname;
 
   if (platform_sp) {
     library_fullname =
         platform_sp->GetFullNameForDylib(ConstString(library_name)).AsCString();
+    LLDB_LOGF(log, "[SWIFT_LIBRARY_LOAD] Platform generated library name: %s", library_fullname.c_str());
   } else // This is the old way, and we shouldn't use it except on Mac OS
   {
 #ifdef __APPLE__
@@ -4351,6 +4511,7 @@ bool SwiftASTContext::LoadLibraryUsingPaths(
     library_fullname.append(library_name.str());
     library_fullname.append(".dylib");
 #else
+    LLDB_LOGF(log, "[SWIFT_LIBRARY_LOAD] ERROR: No platform available and not on Apple");
     return false;
 #endif
   }
@@ -4359,6 +4520,7 @@ bool SwiftASTContext::LoadLibraryUsingPaths(
   module_spec.GetFileSpec().SetFilename(library_fullname);
 
   if (process.GetTarget().GetImages().FindFirstModule(module_spec)) {
+    printf("[SWIFT_LIBRARY_LOAD] EARLY RETURN: Module already loaded: %s\n", library_fullname.c_str());
     LOG_PRINTF(GetLog(LLDBLog::Types),
                "Skipping module %s as it is already loaded.",
                library_fullname.c_str());
@@ -4391,8 +4553,11 @@ bool SwiftASTContext::LoadLibraryUsingPaths(
   // check above didn't correctly detect whether a library was loaded before.
   // See also rdar://74454500 for more details.
   auto library_load_iter = library_load_cache.find(library_request);
-  if (library_load_iter != library_load_cache.end())
+  if (library_load_iter != library_load_cache.end()) {
+    printf("[SWIFT_LIBRARY_LOAD] EARLY RETURN: Library load request cached: %s (result: %s)\n", 
+           library_fullname.c_str(), library_load_iter->second ? "true" : "false");
     return library_load_iter->second;
+  }
   // Pretend for now we loaded the library successfully. There are multiple
   // early-returns in the following code for successful loads and this should
   // cover all of them. The single failure code branch at the end changes the
@@ -4403,14 +4568,34 @@ bool SwiftASTContext::LoadLibraryUsingPaths(
   FileSpec found_library;
   uint32_t token = LLDB_INVALID_IMAGE_TOKEN;
   Status error;
-  if (platform_sp)
+  
+  LLDB_LOGF(log, "[SWIFT_LIBRARY_LOAD] Attempting platform LoadImageUsingPaths for: %s", library_fullname.c_str());
+  LLDB_LOGF(log, "[SWIFT_LIBRARY_LOAD] Platform search paths count: %zu", uniqued_paths.size());
+  
+  printf("[SWIFT_LIBRARY_LOAD] About to call platform->LoadImageUsingPaths for: %s\n", library_fullname.c_str());
+  printf("[SWIFT_LIBRARY_LOAD] Platform search paths count: %zu\n", uniqued_paths.size());
+  printf("[SWIFT_LIBRARY_LOAD] Platform type: %s\n", platform_sp ? platform_sp->GetName().str().c_str() : "null");
+  
+  if (platform_sp) {
+    printf("[SWIFT_LIBRARY_LOAD] Calling platform->LoadImageUsingPaths...\n");
     token = platform_sp->LoadImageUsingPaths(
         &process, library_spec, uniqued_paths, error, &found_library);
+    printf("[SWIFT_LIBRARY_LOAD] LoadImageUsingPaths returned: token=%u, error=%s\n", 
+           token, error.AsCString() ? error.AsCString() : "none");
+    LLDB_LOGF(log, "[SWIFT_LIBRARY_LOAD] Platform LoadImageUsingPaths result: token=%u, error=%s", 
+               token, error.AsCString() ? error.AsCString() : "none");
+  } else {
+    printf("[SWIFT_LIBRARY_LOAD] No platform available for LoadImageUsingPaths\n");
+    LLDB_LOGF(log, "[SWIFT_LIBRARY_LOAD] No platform available for LoadImageUsingPaths");
+  }
+  
   if (token != LLDB_INVALID_IMAGE_TOKEN) {
+    LLDB_LOGF(log, "[SWIFT_LIBRARY_LOAD] SUCCESS: Found library at: %s", found_library.GetPath().c_str());
     LOG_PRINTF(GetLog(LLDBLog::Types), "Found library at: %s.",
                found_library.GetPath().c_str());
     return true;
   } else {
+    LLDB_LOGF(log, "[SWIFT_LIBRARY_LOAD] FAILED: Platform could not find library");
     all_dlopen_errors.Printf("Failed to find \"%s\" in paths:\n",
                              library_fullname.c_str());
     for (const std::string &search_dir : uniqued_paths)
@@ -4422,19 +4607,27 @@ bool SwiftASTContext::LoadLibraryUsingPaths(
     library_path = "@rpath/";
     library_path += library_fullname;
 
+    LLDB_LOGF(log, "[SWIFT_LIBRARY_LOAD] Attempting RPATH fallback with: %s", library_path.c_str());
+
     FileSpec link_lib_spec(library_path.c_str());
 
     if (LoadOneImage(process, link_lib_spec, load_image_error)) {
+      LLDB_LOGF(log, "[SWIFT_LIBRARY_LOAD] SUCCESS: Found library using RPATH at: %s", library_path.c_str());
       LOG_PRINTF(GetLog(LLDBLog::Types), "Found library using RPATH at: %s.",
                  library_path.c_str());
       return true;
-    } else
+    } else {
+      LLDB_LOGF(log, "[SWIFT_LIBRARY_LOAD] FAILED: RPATH fallback also failed, error: %s", 
+                 load_image_error.AsCString() ? load_image_error.AsCString() : "none");
       all_dlopen_errors.Printf("Failed to find \"%s\" on RPATH, error: %s\n",
                                library_fullname.c_str(),
                                load_image_error.AsCString());
+    }
   }
 
   // Remember that this failed library failed to load so we don't try again.
+  LLDB_LOGF(log, "[SWIFT_LIBRARY_LOAD] FINAL FAILURE: All loading attempts failed for library: %s", library_fullname.c_str());
+  LLDB_LOGF(log, "[SWIFT_LIBRARY_LOAD] Caching failure result to avoid retry");
   library_load_cache[library_request] = false;
   return false;
 }
@@ -4455,7 +4648,7 @@ void SwiftASTContext::LoadExtraDylibs(Process &process, Status &error) {
           m_compiler_invocation_ap->getSearchPathOptions());
 
       bool success = LoadLibraryUsingPaths(process, library_name, search_paths,
-                                           false, errors);
+                                            false, errors);
       if (!success) {
         error = Status::FromErrorString(errors.GetData());
       }
@@ -4493,7 +4686,7 @@ void SwiftASTContext::RegisterSectionModules(
       std::string error = toString(std::move(E));
       LOG_PRINTF(
           GetLog(LLDBLog::Types),
-          "failed to parse AST section %zu/%zu in image \"%s\" "
+          "failed to parse AST section %zu/%zu in image \"%s\""
           "(filter=\"%s\"). %s",
           n, total,
           module.GetFileSpec().GetFilename().AsCString("<unknown module>"),
@@ -4963,7 +5156,7 @@ SwiftASTContext::FindContainedTypeOrDecl(llvm::StringRef name,
 }
 
 CompilerType SwiftASTContext::FindType(const char *name,
-                                       swift::ModuleDecl *swift_module) {
+                                      swift::ModuleDecl *swift_module) {
   VALID_OR_RETURN(CompilerType());
 
   std::set<CompilerType> search_results;
@@ -5063,7 +5256,7 @@ size_t SwiftASTContext::FindTypesOrDecls(const char *name,
 }
 
 size_t SwiftASTContext::FindType(const char *name,
-                                 std::set<CompilerType> &results, bool append) {
+                                  std::set<CompilerType> &results, bool append) {
   VALID_OR_RETURN(0);
 
   if (!append)
@@ -6396,10 +6589,10 @@ CompilerType
 SwiftASTContext::GetFunctionReturnType(opaque_compiler_type_t type) {
   VALID_OR_RETURN_CHECK_TYPE(type, CompilerType());
 
-  auto func =
-      swift::dyn_cast<swift::AnyFunctionType>(GetCanonicalSwiftType(type));
-  if (func)
-    return ToCompilerType({func.getResult().getPointer()});
+      auto func =
+        swift::dyn_cast<swift::AnyFunctionType>(GetCanonicalSwiftType(type));
+    if (func)
+      return ToCompilerType({func.getResult().getPointer()});
 
   return {};
 }
@@ -8715,8 +8908,8 @@ void SwiftASTContext::DumpTypeDescription(opaque_compiler_type_t type,
             if (clang_type) {
               Flags clang_type_flags(clang_type.GetTypeInfo());
               DumpTypeDescription(clang_type.GetOpaqueQualType(), s,
-                                  print_help_if_available,
-                                  print_extensions_if_available, level);
+                                   print_help_if_available,
+                                   print_extensions_if_available, level);
             }
           }
         } else if (kind == swift::DeclKind::Func ||
@@ -8750,7 +8943,7 @@ void SwiftASTContext::DumpTypeDescription(opaque_compiler_type_t type,
                           imported_value_decl->getInterfaceType()
                               .getPointer()) {
                     DumpTypeDescription(decl_type, s, print_help_if_available,
-                                        print_extensions_if_available, level);
+                                         print_extensions_if_available, level);
                   }
                 }
               }
@@ -9185,7 +9378,7 @@ bool SwiftASTContextForExpressions::CacheUserImports(
           if (llvm::sys::path::is_absolute(ast_file)) {
             auto file_or_err =
                 llvm::MemoryBuffer::getFile(ast_file, /*IsText=*/false,
-                                            /*RequiresNullTerminator=*/false);
+                                           /*RequiresNullTerminator=*/false);
             if (!file_or_err.getError() && file_or_err->get()) {
               PathMappingList path_remap;
               llvm::SmallString<0> error;
@@ -9197,8 +9390,8 @@ bool SwiftASTContextForExpressions::CacheUserImports(
               StringRef module_filter;
 
               LOG_PRINTF(GetLog(LLDBLog::Types),
-                         "Scanning for search paths in %s",
-                         ast_file.str().c_str());
+                        "Scanning for search paths in %s",
+                        ast_file.str().c_str());
               if (DeserializeAllCompilerFlags(
                       invocation, ast_file, module_filter,
                       {file_or_err->get()->getBuffer()}, path_remap,
@@ -9206,7 +9399,7 @@ bool SwiftASTContextForExpressions::CacheUserImports(
                       errs, got_serialized_options, found_swift_modules,
                       /*search_paths_only = */ true)) {
                 LOG_PRINTF(GetLog(LLDBLog::Types), "Could not parse %s: %s",
-                           ast_file.str().c_str(), error.str().str().c_str());
+                          ast_file.str().c_str(), error.str().str().c_str());
               }
               if (got_serialized_options)
                 LogConfiguration();

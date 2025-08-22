@@ -38,6 +38,10 @@ public:
     return llvm::make_error<HostInfoError>("cannot determine SDK root");
   }
 
+  /// Return the default set of library paths to search in for Swift libraries.
+  /// This provides Linux-specific paths for Swift runtime libraries.
+  static std::vector<std::string> GetSwiftLibrarySearchPaths();
+
 protected:
   static bool ComputeSupportExeDirectory(FileSpec &file_spec);
   static bool ComputeSystemPluginsDirectory(FileSpec &file_spec);

@@ -2679,27 +2679,53 @@ llvm::Expected<std::unique_ptr<UtilityFunction>>
 Target::CreateUtilityFunction(std::string expression, std::string name,
                               lldb::LanguageType language,
                               ExecutionContext &exe_ctx) {
+  printf("[TARGET] CreateUtilityFunction called for: %s (language: %s)\n", 
+         name.c_str(), Language::GetNameForLanguageType(language));
+  printf("[TARGET] Expression length: %zu characters\n", expression.length());
+  
+  printf("[TARGET] Getting scratch type system for language: %s\n", 
+         Language::GetNameForLanguageType(language));
   auto type_system_or_err = GetScratchTypeSystemForLanguage(language);
-  if (!type_system_or_err)
+  if (!type_system_or_err) {
+    printf("[TARGET] FAILED: Could not get scratch type system for language: %s\n", 
+           Language::GetNameForLanguageType(language));
     return type_system_or_err.takeError();
+  }
+  printf("[TARGET] SUCCESS: Got scratch type system\n");
+  
   auto ts = *type_system_or_err;
-  if (!ts)
+  if (!ts) {
+    printf("[TARGET] FAILED: Type system for language %s is no longer live\n", 
+           Language::GetNameForLanguageType(language));
     return llvm::createStringError(
         llvm::StringRef("Type system for language ") +
         Language::GetNameForLanguageType(language) +
         llvm::StringRef(" is no longer live"));
+  }
+  printf("[TARGET] Type system is live and valid\n");
+  
+  printf("[TARGET] Creating utility function in type system...\n");
   std::unique_ptr<UtilityFunction> utility_fn =
       ts->CreateUtilityFunction(std::move(expression), std::move(name));
-  if (!utility_fn)
+  if (!utility_fn) {
+    printf("[TARGET] FAILED: Could not create utility function for language: %s\n", 
+           Language::GetNameForLanguageType(language));
     return llvm::createStringError(
         llvm::StringRef("Could not create an expression for language") +
         Language::GetNameForLanguageType(language));
+  }
+  printf("[TARGET] SUCCESS: Utility function created in type system\n");
 
+  printf("[TARGET] Installing utility function...\n");
   DiagnosticManager diagnostics;
-  if (!utility_fn->Install(diagnostics, exe_ctx))
+  if (!utility_fn->Install(diagnostics, exe_ctx)) {
+    printf("[TARGET] FAILED: Could not install utility function\n");
     return diagnostics.GetAsError(lldb::eExpressionSetupError,
                                   "Could not install utility function:");
+  }
+  printf("[TARGET] SUCCESS: Utility function installed successfully\n");
 
+  printf("[TARGET] Returning utility function: %s\n", name.c_str());
   return std::move(utility_fn);
 }
 

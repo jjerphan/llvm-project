@@ -15,6 +15,7 @@
 #include "lldb/Utility/Log.h"
 
 #include <string>
+#include <cstdlib>
 
 using namespace lldb_private;
 
@@ -29,6 +30,21 @@ FileSpec HostInfoPosix::GetSwiftResourceDir() {
   static std::once_flag g_once_flag;
   static FileSpec g_swift_resource_dir;
   std::call_once(g_once_flag, []() {
+    // First check if a custom Swift resource directory is specified via environment variable
+    const char *custom_swift_dir = getenv("SWIFT_RESOURCE_DIR");
+    if (custom_swift_dir && custom_swift_dir[0] != '\0') {
+      // Use the custom Swift resource directory
+      g_swift_resource_dir.SetDirectory(custom_swift_dir);
+      FileSystem::Instance().Resolve(g_swift_resource_dir);
+      
+      Log *log = GetLog(LLDBLog::Host);
+      if (log) {
+        LLDB_LOG(log, "Using custom Swift resource directory: '{0}'", g_swift_resource_dir);
+      }
+      return;
+    }
+    
+    // Fall back to the default computation using LLDB's own directory
     FileSpec lldb_file_spec = HostInfoPosix::GetShlibDir();
     HostInfoPosix::ComputeSwiftResourceDirectory(lldb_file_spec,
                                                  g_swift_resource_dir, true);

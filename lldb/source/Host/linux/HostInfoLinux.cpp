@@ -19,6 +19,7 @@
 #include <cstring>
 #include <sys/utsname.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include <algorithm>
 #include <mutex>
@@ -48,6 +49,104 @@ void HostInfoLinux::Terminate() {
   delete g_fields;
   g_fields = nullptr;
   HostInfoBase::Terminate();
+}
+
+std::vector<std::string> HostInfoLinux::GetSwiftLibrarySearchPaths() {
+  std::vector<std::string> paths;
+
+  // Add printf-style logging that will definitely show up
+  printf("[HOSTINFO_LINUX] ========================================\n");
+  printf("[HOSTINFO_LINUX] GetSwiftLibrarySearchPaths called\n");
+
+  // Add logging to see what paths we're providing
+  printf("[HOSTINFO_LINUX] GetSwiftLibrarySearchPaths called\n");
+  
+  // Add paths from the user's specific build directory
+  // These paths are based on the user's build setup
+  paths.push_back("/home/jjerphan/dev/build/Ninja-RelWithDebInfoAssert/swift-linux-x86_64/lib/swift/linux");
+  paths.push_back("/home/jjerphan/dev/build/Ninja-RelWithDebInfoAssert/swift-linux-x86_64/lib/swift/linux/x86_64");
+  paths.push_back("/home/jjerphan/dev/build/Ninja-RelWithDebInfoAssert/lldb-linux-x86_64/lib/lldb/swift/linux");
+  paths.push_back("/home/jjerphan/dev/build/Ninja-RelWithDebInfoAssert/lldb-linux-x86_64/lib/lldb/swift/linux/x86_64");
+  
+  // Add Foundation and other framework library paths
+  paths.push_back("/home/jjerphan/dev/build/Ninja-RelWithDebInfoAssert/foundation-linux-x86_64/lib");
+  paths.push_back("/home/jjerphan/dev/build/Ninja-RelWithDebInfoAssert/libdispatch-linux-x86_64");
+  paths.push_back("/home/jjerphan/dev/build/Ninja-RelWithDebInfoAssert/xctest-linux-x86_64");
+  
+  // Add Swift compiler library paths that may contain additional runtime components
+  paths.push_back("/home/jjerphan/dev/build/Ninja-RelWithDebInfoAssert/swift-linux-x86_64/lib");
+
+  // Add common Linux Swift library paths
+  paths.push_back("/usr/lib/swift");
+  paths.push_back("/usr/lib/swift/linux");
+  
+  // Add x86_64 specific paths
+  paths.push_back("/usr/lib/swift/linux/x86_64");
+  
+  // Add paths from environment variables if they exist
+  const char *swift_library_path = getenv("SWIFT_LIBRARY_PATH");
+  if (swift_library_path) {
+    paths.push_back(swift_library_path);
+    printf("[HOSTINFO_LINUX] Added SWIFT_LIBRARY_PATH: %s\n", swift_library_path);
+  }
+  
+  const char *swift_root = getenv("SWIFT_ROOT");
+  if (swift_root) {
+    std::string swift_lib_path = std::string(swift_root) + "/lib/swift/linux";
+    paths.push_back(swift_lib_path);
+    printf("[HOSTINFO_LINUX] Added SWIFT_ROOT derived path: %s\n", swift_lib_path.c_str());
+  }
+  
+  const char *swift_framework_path = getenv("SWIFT_FRAMEWORK_PATH");
+  if (swift_framework_path) {
+    paths.push_back(swift_framework_path);
+    printf("[HOSTINFO_LINUX] Added SWIFT_FRAMEWORK_PATH: %s\n", swift_framework_path);
+  }
+  
+  const char *ld_library_path = getenv("LD_LIBRARY_PATH");
+  if (ld_library_path) {
+    // Split LD_LIBRARY_PATH by colon and add each path
+    std::string ld_paths(ld_library_path);
+    size_t pos = 0;
+    while ((pos = ld_paths.find(':')) != std::string::npos) {
+      std::string path = ld_paths.substr(0, pos);
+      if (!path.empty()) {
+        paths.push_back(path);
+        printf("[HOSTINFO_LINUX] Added LD_LIBRARY_PATH component: %s\n", path.c_str());
+      }
+      ld_paths.erase(0, pos + 1);
+    }
+    if (!ld_paths.empty()) {
+      paths.push_back(ld_paths);
+      printf("[HOSTINFO_LINUX] Added LD_LIBRARY_PATH component: %s\n", ld_paths.c_str());
+    }
+  }
+  
+  printf("[HOSTINFO_LINUX] GetSwiftLibrarySearchPaths returning %zu paths\n", paths.size());
+  for (size_t i = 0; i < paths.size(); i++) {
+    const std::string &path = paths[i];
+    printf("[HOSTINFO_LINUX]   Path %zu: %s\n", i, path.c_str());
+
+    // Check if the path exists and log what's in it
+    if (access(path.c_str(), F_OK) == 0) {
+      printf("[HOSTINFO_LINUX]     Path exists: %s\n", path.c_str());
+
+      // Check for common Swift library files
+      std::vector<std::string> swift_libs = {"libswiftCore.so", "libswiftRuntime.so", "libswiftSwiftOnoneSupport.so"};
+      for (const std::string &lib : swift_libs) {
+        std::string lib_path = path + "/" + lib;
+        if (access(lib_path.c_str(), F_OK) == 0) {
+          printf("[HOSTINFO_LINUX]       Found Swift library: %s\n", lib.c_str());
+        }
+      }
+    } else {
+      printf("[HOSTINFO_LINUX]     Path does not exist: %s\n", path.c_str());
+    }
+  }
+
+  printf("[HOSTINFO_LINUX] ========================================\n");
+
+  return paths;
 }
 
 llvm::VersionTuple HostInfoLinux::GetOSVersion() {
