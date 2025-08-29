@@ -607,31 +607,13 @@ PlatformPOSIX::MakeLoadImageUtilityFunction(ExecutionContext &exe_ctx,
       // DEBUG: Try to write debug info to stderr (if available in target process)
       // This will help us see what paths are being tried
       // Note: This might not work in all target processes, but it's worth trying
-      #ifndef NDEBUG
-      if (stderr) {
-        fprintf(stderr, "[DLOPEN_DEBUG] Trying to load: %s\n", buffer);
-        fflush(stderr);
-      }
-      #endif
       
       result_ptr->image_ptr = dlopen(buffer, RTLD_LAZY);
       if (result_ptr->image_ptr) {
         result_ptr->error_str = nullptr;
-        #ifndef NDEBUG
-        if (stderr) {
-          fprintf(stderr, "[DLOPEN_DEBUG] SUCCESS: Loaded %s\n", buffer);
-          fflush(stderr);
-        }
-        #endif
         break;
       }
       result_ptr->error_str = dlerror();
-      #ifndef NDEBUG
-      if (stderr) {
-        fprintf(stderr, "[DLOPEN_DEBUG] FAILED: %s - Error: %s\n", buffer, result_ptr->error_str ? result_ptr->error_str : "unknown");
-        fflush(stderr);
-      }
-      #endif
       path_strings = path_strings + path_len + 1;
     }
     return nullptr;
