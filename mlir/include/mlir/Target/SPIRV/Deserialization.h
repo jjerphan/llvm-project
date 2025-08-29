@@ -15,6 +15,7 @@
 
 #include "mlir/IR/OwningOpRef.h"
 #include "mlir/Support/LLVM.h"
+#include "mlir/Target/SPIRV/SPIRVBinaryUtils.h"
 
 namespace mlir {
 class MLIRContext;
