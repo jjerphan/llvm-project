@@ -1,0 +1,105 @@
+add_flang_unittest(FlangInterpreterTests
+  FortranInterpreterTest.cpp
+)
+
+target_link_libraries(FlangInterpreterTests
+  PRIVATE
+    flangInterpreter
+    LLVMOrcJIT
+    LLVMExecutionEngine
+    LLVMOrcShared
+    FortranParser
+    FortranSupport
+    # MLIR libraries
+    MLIRIR
+    MLIRSupport
+    MLIRAffineDialect
+    MLIRArithDialect
+    MLIRControlFlowDialect
+    MLIRFuncDialect
+    MLIRLLVMDialect
+    MLIRVectorDialect
+    MLIRMathDialect
+    MLIRComplexDialect
+    MLIRDLTIDialect
+    MLIRGPUDialect
+    MLIRIndexDialect
+    MLIRNVVMDialect
+    MLIRSCFDialect
+    MLIROpenACCDialect
+    MLIROpenMPDialect
+    # FIR dialect libraries
+    FIRDialect
+    FIRCodeGenDialect
+    HLFIRDialect
+    # Flang passes library
+    flangPasses
+    # Flang frontend library
+    flangFrontend
+    # Flang libraries
+    FortranLower
+    FortranSemantics
+    FortranEvaluate
+    FortranUtils
+    # Additional Flang libraries that might contain frontend functionality
+    FortranDecimal
+    # Additional LLVM libraries
+    LLVMSupport
+    LLVMCore
+    LLVMTarget
+    LLVMAnalysis
+    LLVMTransformUtils
+    LLVMScalarOpts
+    LLVMInstCombine
+    LLVMAggressiveInstCombine
+    LLVMVectorize
+    LLVMInstrumentation
+    LLVMipo
+    LLVMBitWriter
+    LLVMBitReader
+    LLVMIRReader
+    LLVMAsmParser
+    LLVMLinker
+    LLVMCodeGen
+    LLVMSelectionDAG
+    LLVMGlobalISel
+    LLVMPasses
+    LLVMCFGuard
+    LLVMCGData
+    LLVMCodeGenTypes
+    LLVMCoroutines
+    LLVMHipStdPar
+    LLVMObjCARCOpts
+    LLVMSandboxIR
+    LLVMJITLink
+    LLVMOrcTargetProcess
+    LLVMWindowsDriver
+    LLVMOption
+    LLVMRuntimeDyld
+    LLVMFrontendOpenACC
+    LLVMFrontendOpenMP
+    LLVMFrontendDirective
+    LLVMFrontendOffloading
+    LLVMFrontendAtomic
+    LLVMFrontendHLSL
+    LLVMProfileData
+    LLVMSymbolize
+    LLVMDebugInfoGSYM
+    LLVMDebugInfoPDB
+    LLVMDebugInfoCodeView
+    LLVMDebugInfoMSF
+    LLVMDebugInfoBTF
+    LLVMDebugInfoDWARF
+    LLVMDebugInfoDWARFLowLevel
+    LLVMObject
+    LLVMTextAPI
+    LLVMRemarks
+    LLVMBitstreamReader
+    LLVMDemangle
+    LLVMTargetParser
+    LLVMBinaryFormat
+    LLVMMC
+    LLVMMCParser
+    LLVMObjectYAML
+)
+
